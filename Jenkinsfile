@@ -3,19 +3,15 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "elearning-site"
+        CONTAINER_NAME = "elearning-container"
     }
 
     stages {
-        stage('Clone Repository') {
-            steps {
-                 git url: 'https://github.com/Sweety083/E-Learning-Website-HTML-CSS.git', branch: 'main', credentialsId: 'github-creds'
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh 'docker build -t elearning-site .'
+                    echo "🔨 Building Docker image: ${DOCKER_IMAGE}"
+                    sh "docker build -t ${DOCKER_IMAGE} ."
                 }
             }
         }
@@ -23,10 +19,14 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
-                    // Stop existing container if running
-                    sh 'docker rm -f elearning-container || true'
-                    // Run new container
-                    sh 'docker run -d -p 8080:80 --name elearning-container elearning-site'
+                    echo "🛑 Stopping existing container if any..."
+                    sh "docker rm -f ${CONTAINER_NAME} || true"
+
+                    echo "🏃 Running new container..."
+                    sh "docker run -d -p 8080:80 --name ${CONTAINER_NAME} ${DOCKER_IMAGE}"
+
+                    echo "📦 Container running:"
+                    sh "docker ps | grep ${CONTAINER_NAME} || true"
                 }
             }
         }
