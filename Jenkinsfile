@@ -1,94 +1,93 @@
 pipeline {
-  agent any
-  environment {
-    DOCKER_REGISTRY = credentials('docker-registry-credentials') // username/password pair ID or use DOCKER_CREDS
-    IMAGE_NAME = "sweetyraj22/e-learning-site"          // replace
-                                         // optional
-  }
-  options {
-    timestamps()
-    buildDiscarder(logRotator(numToKeepStr: '20'))
-  }
-  stages {
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    
+    agent any
+
+    environment {
+        // Docker Hub credentials configured in Jenkins (replace with your IDs)
+        DOCKER_REGISTRY = "docker.io"
+        DOCKER_CREDENTIALS_ID = "docker-registry-credentials"
+        IMAGE_NAME = "sweetyraj22/e-learning-site"
+        
+        // Kubernetes namespace
+        K8S_NAMESPACE = "default"
+        K8S_DEPLOYMENT_NAME = "e-learning-site"
     }
 
-    stage('Build Image') {
-      steps {
-        script {
-          // use git commit hash as tag
-          GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-          IMAGE_TAG = "${env.IMAGE_NAME}:${GIT_COMMIT}"
+    options {
+        // Prevent multiple concurrent builds
+        disableConcurrentBuilds()
+        // Keep logs for 10 builds
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                deleteDir()
+            }
         }
-        sh "docker build -t ${IMAGE_TAG} ."
-      }
-    }
 
-    stage('Push Image') {
-      steps {
-        script {
-          // login then push - expect DOCKER_REGISTRY to be username/password credentials id in Jenkins
-          withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
-            sh "docker push ${IMAGE_TAG}"
-          }
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Sweety083/E-Learning-Website-HTML-CSS.git', credentialsId: 'github-credentials'
+            }
         }
-      }
-    }
 
-    stage('Deploy to Kubernetes (blue/green)') {
-      steps {
-        script {
-          // Determine which color is idle (flip)
-          // Requires kubectl configured on the agent with access to cluster
-          // We'll detect which version service currently points to and deploy to the other
-          def svcSelector = sh(script: "kubectl get svc web-svc -o jsonpath='{.spec.selector.version}' || echo ''", returnStdout: true).trim()
-          echo "Current service selector version: ${svcSelector}"
-          def newColor = (svcSelector == 'blue' || svcSelector == '') ? 'green' : 'blue'
-          echo "Will deploy to: ${newColor}"
-
-          // Apply the correct deployment manifest with IMAGE replacement
-          def deployFile = "k8s/deployment-${newColor}.yaml"
-          sh "sed 's|REPLACE_IMAGE|${IMAGE_TAG}|g' ${deployFile} > /tmp/deploy-${newColor}.yaml"
-          sh "kubectl apply -f /tmp/deploy-${newColor}.yaml"
-
-          // Wait for rollout to finish
-          sh "kubectl rollout status deployment/web-${newColor} --timeout=120s"
-
-          // Smoke test the new deployment by port-forwarding or by switching service temporarily (we will try a readiness probe check)
-          // Option A: test pods are Ready
-          sh """
-            POD=\$(kubectl get pods -l app=web,version=${newColor} -o jsonpath='{.items[0].metadata.name}')
-            echo "Testing pod: \$POD"
-            kubectl exec \$POD -- wget -qO- --tries=3 --timeout=5 http://localhost/ || (echo 'smoke test failed' && exit 1)
-          """
-          // Now switch service selector to the new color
-          sh "kubectl -n default patch service web-svc -p \"{\\\"spec\\\":{\\\"selector\\\":{\\\"app\\\":\\\"web\\\",\\\"version\\\":\\\"${newColor}\\\"}}}\""
-
-          // Wait a few seconds for service to route
-          sleep 5
-
-          // Final smoke test by curling the service (assuming cluster DNS accessible from agent)
-          sh "kubectl run curl-test --image=appropriate/curl --rm -i --restart=Never --command -- curl -fsS http://web-svc.default.svc.cluster.local/ || (echo 'service test failed' && exit 1)"
-
-          // Scale down the old deployment
-          def oldColor = (newColor == 'blue') ? 'green' : 'blue'
-          echo "Scaling down old deployment: ${oldColor}"
-          sh "kubectl scale deployment web-${oldColor} --replicas=0 || true"
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.IMAGE_TAG = "${commitHash}"
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
         }
-      }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin ${DOCKER_REGISTRY}
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes (Blue-Green)') {
+            steps {
+                script {
+                    // Fetch current deployment version
+                    def currentColor = sh(script: "kubectl get deployment ${K8S_DEPLOYMENT_NAME}-blue -n ${K8S_NAMESPACE} --ignore-not-found -o jsonpath='{.metadata.name}' || echo ''", returnStdout: true).trim()
+                    
+                    def newColor = currentColor ? "green" : "blue"
+                    
+                    echo "Deploying new version to ${newColor} environment"
+                    
+                    // Update Kubernetes deployment manifest dynamically
+                    sh """
+                        sed 's#IMAGE_PLACEHOLDER#${IMAGE_NAME}:${IMAGE_TAG}#' k8s/service.yaml | kubectl apply -n ${K8S_NAMESPACE} -f -
+                    """
+                    
+                    // Switch service to new deployment (Blue-Green)
+                    sh """
+                        kubectl patch service e-learning-service -n ${K8S_NAMESPACE} -p '{"spec":{"selector":{"app":"${K8S_DEPLOYMENT_NAME}-${newColor}"}}}'
+                    """
+                }
+            }
+        }
     }
-  }
-  post {
-    success {
-      echo "Blue-Green deployment successful. Image: ${IMAGE_TAG}"
+
+    post {
+        success {
+            echo 'Deployment successful! 🚀'
+        }
+        failure {
+            echo 'Deployment failed. Please check the logs.'
+        }
     }
-    failure {
-      echo "Deployment failed — keep previous serving version. Manual investigation required."
-    }
-  }
 }
+
+
 
