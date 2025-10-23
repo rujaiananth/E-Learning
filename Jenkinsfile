@@ -1,22 +1,15 @@
 pipeline {
-    
     agent any
 
     environment {
-        // Docker Hub credentials configured in Jenkins (replace with your IDs)
         DOCKER_REGISTRY = "docker.io"
-        DOCKER_CREDENTIALS_ID = "docker-registry-credentials"
+        DOCKER_CREDENTIALS_ID = "dockerhub"
         IMAGE_NAME = "sweetyraj22/e-learning-site"
-        
-        // Kubernetes namespace
         K8S_NAMESPACE = "default"
-        K8S_DEPLOYMENT_NAME = "e-learning-site"
     }
 
     options {
-        // Prevent multiple concurrent builds
         disableConcurrentBuilds()
-        // Keep logs for 10 builds
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
@@ -30,7 +23,7 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/Sweety083/E-Learning-Website-HTML-CSS.git', credentialsId: 'github-credentials'
+                git branch: 'main', url: 'https://github.com/Sweety083/E-Learning-Website-HTML-CSS.git', credentialsId: '1adc61e3-4dbc-48f9-bc77-8646123f5f2c'
             }
         }
 
@@ -58,21 +51,14 @@ pipeline {
         stage('Deploy to Kubernetes (Blue-Green)') {
             steps {
                 script {
-                    // Fetch current deployment version
-                    def currentColor = sh(script: "kubectl get deployment ${K8S_DEPLOYMENT_NAME}-blue -n ${K8S_NAMESPACE} --ignore-not-found -o jsonpath='{.metadata.name}' || echo ''", returnStdout: true).trim()
-                    
-                    def newColor = currentColor ? "green" : "blue"
-                    
-                    echo "Deploying new version to ${newColor} environment"
-                    
-                    // Update Kubernetes deployment manifest dynamically
+                    def activeColor = sh(script: "kubectl get svc e-learning-service -o=jsonpath='{.spec.selector.version}' || echo blue", returnStdout: true).trim()
+                    def newColor = activeColor == "blue" ? "green" : "blue"
+                    echo "Switching traffic from ${activeColor} to ${newColor}"
+
                     sh """
-                        sed 's#IMAGE_PLACEHOLDER#${IMAGE_NAME}:${IMAGE_TAG}#' k8s/service.yaml | kubectl apply -n ${K8S_NAMESPACE} -f -
-                    """
-                    
-                    // Switch service to new deployment (Blue-Green)
-                    sh """
-                        kubectl patch service e-learning-service -n ${K8S_NAMESPACE} -p '{"spec":{"selector":{"app":"${K8S_DEPLOYMENT_NAME}-${newColor}"}}}'
+                        sed 's#IMAGE_PLACEHOLDER#${IMAGE_NAME}:${IMAGE_TAG}#' k8s/deployment-${newColor}.yaml | kubectl apply -f -
+                        kubectl patch svc e-learning-service -p '{"spec":{"selector":{"app":"e-learning-site","version":"${newColor}"}}}'
+                        kubectl rollout status deployment/e-learning-site-${newColor}
                     """
                 }
             }
@@ -81,13 +67,10 @@ pipeline {
 
     post {
         success {
-            echo 'Deployment successful! 🚀'
+            echo '✅ Blue-Green Deployment completed successfully!'
         }
         failure {
-            echo 'Deployment failed. Please check the logs.'
+            echo '❌ Deployment failed. Please check the Jenkins logs.'
         }
     }
 }
-
-
-
