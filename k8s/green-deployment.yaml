@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elearning-green
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: elearning
+      version: green
+  template:
+    metadata:
+      labels:
+        app: elearning
+        version: green
+    spec:
+      containers:
+      - name: elearning
+        image: rujairj/elearning-website:v2
+        ports:
+        - containerPort: 80
