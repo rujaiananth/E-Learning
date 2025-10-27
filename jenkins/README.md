@@ -3,7 +3,7 @@
 This folder contains a Job DSL script to create a Jenkins pipeline job for the E-Learning site.
 
 Files:
-- `job-dsl/create-e-learning-pipeline.groovy` — Job DSL script that creates a pipeline job named `elearning-pipeline` which reads the `Jenkinsfile` in the repository (branch `main`).
+- `job-dsl/create_elearning_pipeline.groovy` — Job DSL script that creates a pipeline job named `elearning-pipeline` which reads the `Jenkinsfile` in the repository (branch `main`).
 
 Prerequisites on your Jenkins server:
 - Jenkins with the following plugins installed:
@@ -33,7 +33,7 @@ pipeline {
     stage('Run Job DSL') {
       steps {
         // Run the Job DSL script that creates the pipeline job
-        jobDsl targets: 'jenkins/job-dsl/create-e-learning-pipeline.groovy',
+  jobDsl targets: 'jenkins/job-dsl/create_elearning_pipeline.groovy',
                removedJobAction: 'IGNORE',
                removedViewAction: 'IGNORE'
       }
