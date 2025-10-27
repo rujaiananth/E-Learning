@@ -38,7 +38,7 @@ pipeline {
                 script {
                     sh '/usr/local/bin/kubectl apply -f k8s/blue-deployment.yaml'
                     sh '/usr/local/bin/kubectl apply -f k8s/green-deployment.yaml'
-                    sh '/usr/local/bin/kubectl apply -f k8s/service2.yaml'
+                    sh '/usr/local/bin/kubectl apply -f k8s/k8s-service.yaml'
                 }
             }
         }
