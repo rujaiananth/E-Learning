@@ -1,0 +1,38 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/rujaiananth/E-Learning'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh 'eval $(minikube docker-env)'
+                    sh 'docker build -t elearning-website:v1 .'
+                }
+            }
+        }
+
+        stage('Deploy Blue-Green') {
+            steps {
+                script {
+                    sh 'kubectl apply -f k8s/blue-deployment.yaml'
+                    sh 'kubectl apply -f k8s/green-deployment.yaml'
+                    sh 'kubectl apply -f k8s/service2.yaml'
+                }
+            }
+        }
+
+        stage('Switch to Green') {
+            steps {
+                script {
+                    sh "kubectl patch service elearning-service -p '{\"spec\":{\"selector\":{\"app\":\"elearning\",\"version\":\"green\"}}}'"
+                }
+            }
+        }
+    }
+}
