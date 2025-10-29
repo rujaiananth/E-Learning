@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elearning-content-blue
+data:
+  index.html: |
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>E-Learning - BLUE</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
+        .banner { background: #0a74da; color: white; padding: 12px 20px; border-radius: 6px; display: inline-block; }
+      </style>
+    </head>
+    <body>
+      <div class="banner"><h1>ELEARNING — BLUE (Production)</h1></div>
+      <p>Version: <strong>blue</strong></p>
+      <p>This page is served by the <em>blue</em> deployment.</p>
+    </body>
+    </html>

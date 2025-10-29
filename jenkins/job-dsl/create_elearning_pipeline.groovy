@@ -18,8 +18,11 @@ pipelineJob('elearning-pipeline') {
     }
 
     // Optional: poll SCM for changes (adjust or remove as needed)
+    // Prefer GitHub push webhook (requires GitHub plugin). If your Jenkins isn't reachable
+    // from GitHub, fallback to SCM polling by uncommenting the scm() line below.
     triggers {
-        scm('H/5 * * * *')
+        githubPush()
+        // scm('H/5 * * * *')
     }
 
     disabled(false)

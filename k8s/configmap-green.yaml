@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elearning-content-green
+data:
+  index.html: |
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>E-Learning - GREEN</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
+        .banner { background: #09a84b; color: white; padding: 12px 20px; border-radius: 6px; display: inline-block; }
+      </style>
+    </head>
+    <body>
+      <div class="banner"><h1>ELEARNING — GREEN (Canary)</h1></div>
+      <p>Version: <strong>green</strong></p>
+      <p>This page is served by the <em>green</em> deployment.</p>
+    </body>
+    </html>

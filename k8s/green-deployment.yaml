@@ -19,3 +19,10 @@ spec:
         image: rujairj/elearning-website:v2
         ports:
         - containerPort: 80
+        volumeMounts:
+        - name: site-content
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: site-content
+        configMap:
+          name: elearning-content-green
